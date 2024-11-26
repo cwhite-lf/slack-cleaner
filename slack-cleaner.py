@@ -123,13 +123,13 @@ def get_channel_history(channel_id, join_channels, channel_name):
     return fetch_channel_history(channel_id, join_channels, channel_name)
 
 # Function to archive a channel
-def archive_channel(channel_id, dry_run=True):
+def archive_channel(channel_id, dry_run=True, channel_name=None):
     if dry_run:
-        print(f"Dry run: Would archive channel {channel_id}")
+        print(f"Dry run: Would archive channel {channel_name}")
     else:
         try:
             client.conversations_archive(channel=channel_id)
-            print(f"Archived channel {channel_id}")
+            print(f"Archived channel {channel_name}")
         except SlackApiError as e:
             print(f"Error archiving channel: {e.response['error']}")
 
@@ -139,29 +139,37 @@ def clean_up_slack(email_domains, dry_run=True, days=None, join_channels=False):
     for channel in channels:
         channel_id = channel['id']
         channel_name = channel['name']
-        
-        # Check if channel is inactive
-        if days is not None:
+        try:
             history = get_channel_history(channel_id, join_channels, channel_name)
-            if history:
-                last_message_time = float(history[0]['ts'])
-                if time.time() - last_message_time > days * 24 * 60 * 60:
-                    archive_channel(channel_id, dry_run)
-                    continue
-        
-        # Check if channel only contains users with specified email domains
-        users = get_channel_users(channel_id)
-        if users:
-            all_users_match = True
-            for user_id in users:
-                user_info = get_user_info(user_id)
-                if user_info:
-                    email = user_info['profile'].get('email', '')
-                    if not any(email.endswith(domain) for domain in email_domains):
-                        all_users_match = False
-                        break
-            if all_users_match:
-                archive_channel(channel_id, dry_run)
+            # Check if channel is inactive
+            if days is not None:
+                if history:
+                    last_message_time = float(history[1]['ts'])
+                    if args.verbose:
+                        print (f"Second-to-last message in channel {channel_name} was {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_message_time))}")
+                    if time.time() - last_message_time > days * 24 * 60 * 60:
+                        archive_channel(channel_id, dry_run, channel_name)
+                        continue
+            
+            # Check if channel only contains users with specified email domains
+            users = get_channel_users(channel_id)
+            if users:
+                if args.verbose:
+                    print(f"Checking channel #{channel_name} with {len(users)} users")
+                all_users_match = True
+                for user_id in users:
+                    user_info = get_user_info(user_id)
+                    if user_info:
+                        email = user_info['profile'].get('email', '')
+                        if not any(email.endswith(domain) for domain in email_domains):
+                            all_users_match = False
+                            break
+                if args.verbose:
+                    print(f"Channel #{channel_name} has users from {' '.join(email_domains)}: {all_users_match}")
+                if all_users_match:
+                    archive_channel(channel_id, dry_run, channel_name)
+        except Exception as e:
+            print(f"Error processing channel #{channel_name}: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Clean up Slack channels.")
@@ -170,6 +178,7 @@ if __name__ == "__main__":
     parser.add_argument("--days", type=int, help="Archive channels with no messages in the last number of days")
     parser.add_argument("--live", action="store_true", help="Run in live mode (not a dry run)")
     parser.add_argument("--join-channels", action="store_true", help="Join channels if not already a member")
+    parser.add_argument("--verbose", action="store_true", help="Verbose output")
 
     args = parser.parse_args()
 

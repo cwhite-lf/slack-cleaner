@@ -31,6 +31,7 @@ python slack-cleaner.py <api_token> [--email-domains EMAIL_DOMAINS [EMAIL_DOMAIN
 - `--email-domains` (optional): List of email domains to check (default: ["example.com", "anotherdomain.com"]).
 - `--days` (optional): Archive channels with no messages in the last number of days.
 - `--live` (optional): Run in live mode (not a dry run).
+- `--verbose` (optional): Run in verbose mode.
 
 ### Example
 `python slack-cleaner.py xoxb-1234-56789-abcdef --email-domains example.com anotherdomain.com --days 30 --live`
