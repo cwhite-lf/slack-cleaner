@@ -124,15 +124,13 @@ def get_channel_history(channel_id, join_channels, channel_name):
     return fetch_channel_history(channel_id, join_channels, channel_name)
 
 # Function to archive a channel
-def archive_channel(channel_id, dry_run=True, channel_name=None, reason=None, csv_writer=None):
+def archive_channel(channel_id, dry_run=True, channel_name=None, reason=None):
     if dry_run:
         print(f"Dry run: Would archive channel {channel_name} for reason: {reason}")
     else:
         try:
             client.conversations_archive(channel=channel_id)
             print(f"Archived channel {channel_name} for reason: {reason}")
-            if csv_writer:
-                csv_writer.writerow([channel_id, channel_name, reason])
         except SlackApiError as e:
             print(f"Error archiving channel: {e.response['error']}")
 
@@ -148,6 +146,7 @@ def clean_up_slack(email_domains, dry_run=True, days=None, join_channels=False, 
     for channel in channels:
         channel_id = channel['id']
         channel_name = channel['name']
+        already_archived = channel['is_archived']
         try:
             history = get_channel_history(channel_id, join_channels, channel_name)
             # Check if channel is inactive
@@ -158,12 +157,16 @@ def clean_up_slack(email_domains, dry_run=True, days=None, join_channels=False, 
                         print (f"Second-to-last message in channel {channel_name} was {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_message_time))}")
                     if time.time() - last_message_time > days * 24 * 60 * 60:
                         reason = f"Most recent message is {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_message_time))}"
-                        archive_channel(channel_id, dry_run, channel_name, reason, csv_writer)
+                        archive_channel(channel_id, dry_run, channel_name, reason)
+                        already_archived = True
+                        if csv_writer:
+                            csv_writer.writerow([channel_id, channel_name, reason])
+
                         continue
             
             # Check if channel only contains users with specified email domains
             users = get_channel_users(channel_id)
-            if users:
+            if users and not already_archived:
                 if args.verbose:
                     print(f"Checking channel #{channel_name} with {len(users)} users")
                 all_users_match = True
@@ -179,6 +182,9 @@ def clean_up_slack(email_domains, dry_run=True, days=None, join_channels=False, 
                 if all_users_match:
                     reason = "No users in specified domains"
                     archive_channel(channel_id, dry_run, channel_name, reason, csv_writer)
+                    if csv_writer:
+                            csv_writer.writerow([channel_id, channel_name, reason])
+
         except Exception as e:
             print(f"Error processing channel #{channel_name}: {e}")
 
