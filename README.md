@@ -23,18 +23,19 @@ pipenv install
 ## Usage
 
 ```
-python slack-cleaner.py <api_token> [--email-domains EMAIL_DOMAINS [EMAIL_DOMAINS ...]] [--days DAYS] [--live]
+python slack-cleaner.py <api_token> [--email-domains EMAIL_DOMAINS [EMAIL_DOMAINS ...]] [--days DAYS] [--live] [--csv]
 ```
 
 ### Arguments
-- `api_token`: Slack API token.
-- `--email-domains` (optional): List of email domains to check (default: ["example.com", "anotherdomain.com"]).
-- `--days` (optional): Archive channels with no messages in the last number of days.
+- `api_token`: Slack API token (if not specified in .env).
+- `--email-domains domain.com` (optional): List of email domains to check.
+- `--days ###` (optional): Archive channels with no messages in the last number of days.
 - `--live` (optional): Run in live mode (not a dry run).
 - `--verbose` (optional): Run in verbose mode.
+- `--csv filename` (optional): Export the list of archived channels to a CSV file.
 
 ### Example
-`python slack-cleaner.py xoxb-1234-56789-abcdef --email-domains example.com anotherdomain.com --days 30 --live`
+`python slack-cleaner.py xoxb-1234-56789-abcdef --email-domains example.com anotherdomain.com --days 30 --live --csv`
 
 ## Obtaining a Slack API Token
 To use this script, you need a Slack API token. Follow these steps to obtain one:

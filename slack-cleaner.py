@@ -1,6 +1,7 @@
 import sys
 import time
 import argparse
+import csv
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from dotenv import load_dotenv
@@ -123,18 +124,26 @@ def get_channel_history(channel_id, join_channels, channel_name):
     return fetch_channel_history(channel_id, join_channels, channel_name)
 
 # Function to archive a channel
-def archive_channel(channel_id, dry_run=True, channel_name=None):
+def archive_channel(channel_id, dry_run=True, channel_name=None, reason=None, csv_writer=None):
     if dry_run:
-        print(f"Dry run: Would archive channel {channel_name}")
+        print(f"Dry run: Would archive channel {channel_name} for reason: {reason}")
     else:
         try:
             client.conversations_archive(channel=channel_id)
-            print(f"Archived channel {channel_name}")
+            print(f"Archived channel {channel_name} for reason: {reason}")
+            if csv_writer:
+                csv_writer.writerow([channel_id, channel_name, reason])
         except SlackApiError as e:
             print(f"Error archiving channel: {e.response['error']}")
 
 # Main function to clean up Slack instance
-def clean_up_slack(email_domains, dry_run=True, days=None, join_channels=False):
+def clean_up_slack(email_domains, dry_run=True, days=None, join_channels=False, csv_filename=None):
+    csv_writer = None
+    if csv_filename:
+        csv_file = open(csv_filename, 'w', newline='')
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(['Channel ID', 'Channel Name', 'Reason'])
+
     channels = get_channels()
     for channel in channels:
         channel_id = channel['id']
@@ -148,7 +157,8 @@ def clean_up_slack(email_domains, dry_run=True, days=None, join_channels=False):
                     if args.verbose:
                         print (f"Second-to-last message in channel {channel_name} was {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_message_time))}")
                     if time.time() - last_message_time > days * 24 * 60 * 60:
-                        archive_channel(channel_id, dry_run, channel_name)
+                        reason = f"Most recent message is {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_message_time))}"
+                        archive_channel(channel_id, dry_run, channel_name, reason, csv_writer)
                         continue
             
             # Check if channel only contains users with specified email domains
@@ -167,9 +177,13 @@ def clean_up_slack(email_domains, dry_run=True, days=None, join_channels=False):
                 if args.verbose:
                     print(f"Channel #{channel_name} has users from {' '.join(email_domains)}: {all_users_match}")
                 if all_users_match:
-                    archive_channel(channel_id, dry_run, channel_name)
+                    reason = "No users in specified domains"
+                    archive_channel(channel_id, dry_run, channel_name, reason, csv_writer)
         except Exception as e:
             print(f"Error processing channel #{channel_name}: {e}")
+
+    if csv_filename:
+        csv_file.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Clean up Slack channels.")
@@ -179,6 +193,7 @@ if __name__ == "__main__":
     parser.add_argument("--live", action="store_true", help="Run in live mode (not a dry run)")
     parser.add_argument("--join-channels", action="store_true", help="Join channels if not already a member")
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
+    parser.add_argument("--csv", type=str, help="Output archived channels to a CSV file")
 
     args = parser.parse_args()
 
@@ -203,6 +218,9 @@ if __name__ == "__main__":
     if args.join_channels:
         print("Will join channels if not already a member")
 
+    if args.csv:
+        print(f"Outputting archived channels to {args.csv}")
+
     client = WebClient(token=args.api_token)
     dry_run = not args.live
-    clean_up_slack(args.email_domains, dry_run, args.days, args.join_channels)
+    clean_up_slack(args.email_domains, dry_run, args.days, args.join_channels, args.csv)
