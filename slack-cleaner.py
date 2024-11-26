@@ -87,7 +87,7 @@ def fetch_channel_history(channel_id, join_channels, channel_name):
         response = slack_api_request(client.conversations_history, channel=channel_id)
         return response['messages']
     except SlackApiError as e:
-        if e.respo#nse['error'] == 'not_in_channel':
+        if e.response['error'] == 'not_in_channel':
             if join_channels:
                 if not is_channel_archived(channel_id):
                     join_channel(channel_id, channel_name)
