@@ -6,11 +6,18 @@ This script helps clean up Slack channels by archiving inactive channels or chan
 
 - Python 3.x
 - `slack_sdk` library
+- `python-dotenv` library
 
-You can install the required library using pip:
+You can also use a `Pipfile` to manage the dependencies. First, ensure you have `pipenv` installed:
 
 ```bash
-pip install slack_sdk
+pip install pipenv
+```
+
+Then, you can install the required libraries using the `Pipfile`:
+
+```bash
+pipenv install
 ```
 
 ## Usage
