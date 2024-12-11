@@ -134,8 +134,37 @@ def archive_channel(channel_id, dry_run=True, channel_name=None, reason=None):
         except SlackApiError as e:
             print(f"Error archiving channel: {e.response['error']}")
 
+# Add this new function after the archive_channel function
+def archive_channel(channel_id, dry_run=True, channel_name=None, reason=None, closing_message=None):
+    """
+    Close a Slack channel by optionally posting a closing message and then archiving it.
+    """
+    if dry_run:
+        print(f"Dry run: Would close channel {channel_name}")
+        if closing_message:
+            print(f"Dry run: Would post closing message: {closing_message}")
+        print(f"Dry run: Would archive channel for reason: {reason}")
+    else:
+        try:
+            if closing_message:
+                try:
+                    client.chat_postMessage(
+                        channel=channel_id,
+                        text=closing_message,
+                        parse='full'
+                    )
+                    print(f"Posted closing message in channel {channel_name}")
+                except SlackApiError as e:
+                    print(f"Error posting closing message: {e.response['error']}")
+
+            # Archive the channel
+            client.conversations_archive(channel=channel_id)
+            print(f"Closed and archived channel {channel_name} for reason: {reason}")
+        except SlackApiError as e:
+            print(f"Error closing channel: {e.response['error']}")
+
 # Main function to clean up Slack instance
-def clean_up_slack(email_domains, dry_run=True, days=None, join_channels=False, csv_filename=None):
+def clean_up_slack(email_domains, dry_run=True, days=None, join_channels=False, csv_filename=None, closing_message=None):
     csv_writer = None
     if csv_filename:
         csv_file = open(csv_filename, 'w', newline='')
@@ -157,11 +186,11 @@ def clean_up_slack(email_domains, dry_run=True, days=None, join_channels=False, 
                         print (f"Second-to-last message in channel {channel_name} was {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_message_time))}")
                     if time.time() - last_message_time > days * 24 * 60 * 60:
                         reason = f"Most recent message is {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_message_time))}"
-                        archive_channel(channel_id, dry_run, channel_name, reason)
+                        if not dry_run:
+                            archive_channel(channel_id, dry_run, channel_name, reason, closing_message)
                         already_archived = True
                         if csv_writer:
                             csv_writer.writerow([channel_id, channel_name, reason])
-
                         continue
             
             # Check if channel only contains users with specified email domains
@@ -181,9 +210,10 @@ def clean_up_slack(email_domains, dry_run=True, days=None, join_channels=False, 
                     print(f"Channel #{channel_name} has users from {' '.join(email_domains)}: {all_users_match}")
                 if all_users_match:
                     reason = "No users in specified domains"
-                    archive_channel(channel_id, dry_run, channel_name, reason, csv_writer)
+                    if not dry_run:
+                        archive_channel(channel_id, dry_run, channel_name, reason, closing_message)
                     if csv_writer:
-                            csv_writer.writerow([channel_id, channel_name, reason])
+                        csv_writer.writerow([channel_id, channel_name, reason])
 
         except Exception as e:
             print(f"Error processing channel #{channel_name}: {e}")
@@ -200,6 +230,8 @@ if __name__ == "__main__":
     parser.add_argument("--join-channels", action="store_true", help="Join channels if not already a member")
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
     parser.add_argument("--csv", type=str, help="Output archived channels to a CSV file")
+    parser.add_argument("--closing-message", type=str, 
+                       help="Message to post in the channel before archiving")
 
     args = parser.parse_args()
 
@@ -227,6 +259,10 @@ if __name__ == "__main__":
     if args.csv:
         print(f"Outputting archived channels to {args.csv}")
 
+    if args.closing_message:
+        print(f"Will post closing message before archiving: {args.closing_message}")
+
     client = WebClient(token=args.api_token)
     dry_run = not args.live
-    clean_up_slack(args.email_domains, dry_run, args.days, args.join_channels, args.csv)
+    clean_up_slack(args.email_domains, dry_run, args.days, args.join_channels, 
+                  args.csv, args.closing_message)
